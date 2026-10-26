@@ -1,0 +1,11 @@
+- Pixel fidelity: every screen must look like its mock-up in the PNG: same hierarchy, spacing, type, colours and copy text. After building a screen, render a golden at 360x800 and compare it visually with the PNG; fix differences before reporting done.
+- Use ONLY tokens from lib/core/theme. No hard-coded colours, font sizes or spacings inside screens.
+- Use ONLY shared widgets from lib/core/widgets. If a screen needs a new reusable piece, add it to core/widgets, do not copy-paste.
+- No Material cards, no elevation, no shadows, no rounded boxed containers. Content is left-aligned and separated by thin 1 dp rules, like a printed page.
+- Red (Stop) is used ONLY for the emergency stop button and the "Arm stopped" notice. Errors, warnings, low battery and "Pending" use Clay.
+- Touch targets are at least 48 dp. Text scaling up to 130% must not clip or overflow (use flexible layouts, scrollable bodies, no fixed-height text containers).
+- Every interactive element has a Semantics label. Never convey information with colour only; always pair colour with text or an icon.
+- Data comes only through repository interfaces in lib/data/repositories (with Fake implementations for now). Screens never build their own fake data.
+- Copy text: use the exact strings from the PNG. Put all user-visible strings in lib/core/strings.dart.
+- Keep widgets small and const where possible. `flutter analyze` must stay at zero issues. Add or update a golden test for every screen you build.
+- Do not add packages without asking.

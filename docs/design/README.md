@@ -1,0 +1,1 @@
+Place MyoGrip_AI_All_Screens_Paper_and_Forest.png and MyoGrip_AI_Mobile_App_UI_UX_Spec.docx here.
