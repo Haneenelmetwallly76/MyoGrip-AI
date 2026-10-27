@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import json
 import random
 import sqlite3
@@ -12,6 +13,7 @@ ap.add_argument("--base", default="http://localhost:5080")
 ap.add_argument("--ai-url", default="http://localhost:8000")
 ap.add_argument("--ai", action="store_true")
 ap.add_argument("--db")
+ap.add_argument("--clinician-password")
 args = ap.parse_args()
 
 passed = failed = 0
@@ -68,6 +70,7 @@ check("login wrong password -> 401", s == 401, (s, b))
 s, b = call("POST", "/api/auth/login", {"email": email, "password": password})
 check("login -> 200 + token", s == 200 and b.get("accessToken") and b.get("expiresIn") == 3600, (s, b))
 token = b.get("accessToken") if isinstance(b, dict) else None
+uid1 = b["user"]["userId"] if isinstance(b, dict) and "user" in b else None
 
 print("PROFILE")
 s, b = call("GET", "/api/user/profile")
@@ -117,15 +120,63 @@ big = {"batchId": f"big-{stamp}", "entries": [{"timestamp": "2026-10-17T10:00:00
 s, b = call("POST", "/api/prosthetic/sync-logs", big, token=token)
 check("501 entries -> 413", s == 413, (s, b))
 
+print("USAGE + REPORT")
+s, b = call("GET", "/api/prosthetic/usage?from=2026-10-17&to=2026-10-17", token=token)
+day = b["days"][0] if s == 200 and b.get("days") else {}
+check("usage for 2026-10-17 -> 19 s = 0.005 h, 1 error", s == 200 and abs(day.get("usageHours", 0) - 19 / 3600) < 0.0006 and day.get("errorCount") == 1, (s, b))
+check("usage grip strength is duration-weighted (0.562)", abs((day.get("avgGripStrength") or 0) - 0.5621) < 0.001, day)
+s, b = call("GET", "/api/prosthetic/usage?from=2026-10-01&to=2026-10-30", token=token)
+check("usage range is zero-filled (30 days)", s == 200 and len(b.get("days", [])) == 30 and b.get("lastSyncedAt"), (s, str(b)[:200]))
+s, b = call("GET", "/api/prosthetic/usage?from=2026-10-20&to=2026-10-01", token=token)
+check("usage with from after to -> 400", s == 400, (s, b))
+s, b = call("GET", "/api/prosthetic/usage")
+check("usage without token -> 401", s == 401, (s, b))
+now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+recent = {"batchId": f"recent-{stamp}", "entries": [{"timestamp": now, "type": "usage", "gesture": 1, "gripStrength": 0.5, "durationSeconds": 60}]}
+s, b = call("POST", "/api/prosthetic/sync-logs", recent, token=token)
+check("sync a usage entry from right now", s == 200 and b.get("accepted") == 1, (s, b))
+s, b = call("POST", "/api/reports/send", {}, token=token)
+check("send report -> 201 with clinician name", s == 201 and b.get("clinicianName") == "Dr. Example" and b.get("reportId"), (s, b))
+report_id = b.get("reportId") if isinstance(b, dict) else None
+
 print("ISOLATION (a second patient must not see the first one's data)")
 email2 = f"other{stamp}@example.com"
 call("POST", "/api/auth/register", {"fullName": "Other Patient", "age": 40, "email": email2, "password": password, "clinicCode": "QA-2048"})
 s, b = call("POST", "/api/auth/login", {"email": email2, "password": password})
 token2 = b.get("accessToken") if isinstance(b, dict) else None
+uid2 = b["user"]["userId"] if isinstance(b, dict) and "user" in b else None
 s, b = call("GET", "/api/prosthetic/settings", token=token2)
 check("second patient has no settings (404, not patient 1's)", s == 404, (s, b))
 s, b = call("GET", "/api/user/profile", token=token2)
 check("second patient sees own profile", s == 200 and b.get("email") == email2, (s, b))
+s, b = call("POST", "/api/reports/send", {}, token=token2)
+check("report with no data -> 400 NO_USAGE_DATA", s == 400 and b.get("code") == "NO_USAGE_DATA", (s, b))
+
+if args.clinician_password:
+    print("CLINICIAN DASHBOARD")
+    s, b = call("POST", "/api/auth/login", {"email": "clinician-qa-1024@myogrip.test", "password": args.clinician_password})
+    ctoken = b.get("accessToken") if isinstance(b, dict) else None
+    check("clinician login -> role Clinician", s == 200 and b["user"]["role"] == "Clinician", (s, b))
+    s, b = call("GET", "/api/clinic/patients", token=ctoken)
+    ids = [p["userId"] for p in b.get("items", [])] if s == 200 else []
+    check("patient list has own clinic's patient, not the other clinic's", uid1 in ids and uid2 not in ids, (s, ids))
+    s, b = call("GET", f"/api/clinic/patients/{uid1}", token=ctoken)
+    check("patient detail -> 200 with settings", s == 200 and b["settings"]["sensitivity"] == 75, (s, b))
+    s, b = call("GET", f"/api/clinic/patients/{uid2}", token=ctoken)
+    check("patient from another clinic -> 404", s == 404, (s, b))
+    s, b = call("GET", f"/api/clinic/patients/{uid1}/usage?from=2026-10-17&to=2026-10-17", token=ctoken)
+    check("clinician sees patient usage", s == 200 and b["days"][0]["errorCount"] == 1, (s, b))
+    s, b = call("GET", f"/api/clinic/patients/{uid1}/errors", token=ctoken)
+    check("clinician sees error log", s == 200 and any(i["message"] == "WIFI_TIMEOUT" for i in b.get("items", [])), (s, b))
+    s, b = call("GET", "/api/clinic/reports", token=ctoken)
+    mine = [r for r in b.get("items", []) if r["reportId"] == report_id] if s == 200 else []
+    check("report appears in clinician inbox, unread", len(mine) == 1 and mine[0]["read"] is False, (s, b))
+    s, b = call("POST", f"/api/clinic/reports/{report_id}/read", {}, token=ctoken)
+    check("mark report read -> 200", s == 200 and b.get("read") is True, (s, b))
+    s, b = call("GET", "/api/clinic/patients", token=token)
+    check("patient token on clinic endpoint -> 403", s == 403, (s, b))
+    s, b = call("GET", "/api/user/profile", token=ctoken)
+    check("clinician token on patient endpoint -> 403", s == 403, (s, b))
 
 if args.ai:
     print("AI")

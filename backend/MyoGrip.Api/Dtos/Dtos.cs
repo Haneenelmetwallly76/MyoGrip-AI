@@ -63,3 +63,18 @@ public class PredictRequest
 public record AiPrediction(
     int Gesture, double Force, double Uncertainty, bool RejectedBySafety,
     double StiffnessIndex, int StiffnessFlag, int HapticSpike);
+
+public record UsageDay(string Date, double UsageHours, double? AvgGripStrength, int ErrorCount);
+public record UsageResponse(string From, string To, List<UsageDay> Days, DateTime? LastSyncedAt);
+
+public record ReportCreatedResponse(Guid ReportId, DateTime SentAt, string ClinicianName);
+
+public record PatientListItem(Guid UserId, string FullName, int Age, string Email, DateTime? LastSyncedAt);
+public record PatientListResponse(List<PatientListItem> Items);
+public record ClinicPatientDetail(ProfileResponse Profile, SettingsResponse? Settings);
+public record ErrorLogItem(DateTime Timestamp, string Message);
+public record ErrorLogResponse(List<ErrorLogItem> Items);
+public record ReportListItem(
+    Guid ReportId, Guid UserId, string PatientName, DateTime SentAt, string PeriodFrom, string PeriodTo,
+    double TotalUsageHours, double? AvgGripStrength, int DaysWithUsage, int ErrorCount, bool Read);
+public record ReportListResponse(List<ReportListItem> Items);

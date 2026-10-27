@@ -56,3 +56,27 @@ public class LogEntry
     public int? DurationSeconds { get; set; }
     public string? Message { get; set; }
 }
+
+public class Report
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid UserId { get; set; }
+    public int ClinicId { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime PeriodFrom { get; set; }
+    public DateTime PeriodTo { get; set; }
+    public double TotalUsageHours { get; set; }
+    public double? AvgGripStrength { get; set; }
+    public int DaysWithUsage { get; set; }
+    public int ErrorCount { get; set; }
+    public DateTime? ReadAt { get; set; }
+}
+
+public class AuditLog
+{
+    public int Id { get; set; }
+    public Guid ClinicianId { get; set; }
+    public Guid? PatientId { get; set; }
+    public string Action { get; set; } = "";
+    public DateTime At { get; set; } = DateTime.UtcNow;
+}
