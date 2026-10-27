@@ -16,8 +16,22 @@ public class ProstheticController : ControllerBase
     private const int MaxEntries = 500;
 
     private readonly AppDbContext _db;
+    private readonly UsageService _usage;
 
-    public ProstheticController(AppDbContext db) => _db = db;
+    public ProstheticController(AppDbContext db, UsageService usage)
+    {
+        _db = db;
+        _usage = usage;
+    }
+
+    [HttpGet("usage")]
+    public async Task<IActionResult> GetUsage([FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken ct)
+    {
+        if (!UsageService.TryResolveRange(from, to, out var start, out var end, out var error))
+            return BadRequest(new ApiError("VALIDATION_ERROR", error,
+                new Dictionary<string, string[]> { ["range"] = new[] { error } }));
+        return Ok(await _usage.BuildAsync(User.GetUserId(), start, end, ct));
+    }
 
     [HttpGet("settings")]
     public async Task<IActionResult> GetSettings()

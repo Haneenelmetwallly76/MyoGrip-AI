@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -24,6 +25,7 @@ builder.Services.AddDbContext<AppDbContext>(o =>
     o.UseSqlite(builder.Configuration.GetConnectionString("Default")));
 
 builder.Services.AddSingleton<TokenService>();
+builder.Services.AddScoped<UsageService>();
 
 builder.Services.AddHttpClient<AiClient>(c =>
 {
@@ -144,7 +146,28 @@ using (var scope = app.Services.CreateScope())
     {
         db.Clinics.AddRange(
             new Clinic { Code = "QA-1024", Name = "Demo Clinic", ClinicianName = "Dr. Example" },
-            new Clinic { Code = "QA-2048", Name = "Demo Clinic 2", ClinicianName = "Dr. Sample" });
+            new Clinic { Code = "QA-2048", Name = "Demo Clinic 2", ClinicianName = "Dr. Sample" },
+            new Clinic { Code = "CLINIC1", Name = "Demo Clinic 3", ClinicianName = "Dr. Demo" });
+        db.SaveChanges();
+    }
+
+    var seedPassword = builder.Configuration["Seed:ClinicianPassword"];
+    if (!string.IsNullOrWhiteSpace(seedPassword) && seedPassword.Length >= 8 && !db.Users.Any(u => u.Role == "Clinician"))
+    {
+        var hasher = new PasswordHasher<AppUser>();
+        foreach (var clinic in db.Clinics.ToList())
+        {
+            var clinician = new AppUser
+            {
+                FullName = clinic.ClinicianName,
+                Age = 0,
+                Email = $"clinician-{clinic.Code.ToLowerInvariant()}@myogrip.test",
+                Role = "Clinician",
+                ClinicId = clinic.Id,
+            };
+            clinician.PasswordHash = hasher.HashPassword(clinician, seedPassword);
+            db.Users.Add(clinician);
+        }
         db.SaveChanges();
     }
 }
