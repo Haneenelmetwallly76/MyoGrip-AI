@@ -1,0 +1,23 @@
+{
+ "K_smooth": 7,
+ "conf_vote": 0.6,
+ "conf_act": 0.8,
+ "conf_safe": 0.9,
+ "mc_passes": 5,
+ "ood_proto_thresh": null,
+ "decision": "conf>=0.8 \u0646\u0641\u0651\u0630 | 0.6-0.8 \u0625\u062c\u0645\u0627\u0639 K=7 | <0.6 Rest",
+ "fewshot": {
+  "epochs": 15,
+  "lr": 0.0003,
+  "lam": 5.0,
+  "step": 30,
+  "cap": 50,
+  "frozen": [
+   "branch1",
+   "branch2",
+   "branch3",
+   "depthwise",
+   "pointwise"
+  ]
+ }
+}
